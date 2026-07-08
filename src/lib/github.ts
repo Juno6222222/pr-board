@@ -2,20 +2,39 @@ import { PRItem } from "./types";
 
 const GITHUB_API = "https://api.github.com";
 
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  retries = 3
+): Promise<Response> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(url, {
+        ...options,
+        signal: AbortSignal.timeout(15000),
+      });
+      if (res.ok || res.status === 403 || res.status === 401) return res;
+    } catch (e) {
+      if (i === retries - 1) throw e;
+    }
+    await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
+  }
+  throw new Error("Max retries reached");
+}
+
 export async function fetchUserPRs(
   accessToken: string,
   repo: string
 ): Promise<PRItem[]> {
   const [owner, repoName] = repo.split("/");
 
-  const res = await fetch(
+  const res = await fetchWithRetry(
     `${GITHUB_API}/repos/${owner}/${repoName}/pulls?state=all&per_page=30&sort=updated&direction=desc`,
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: "application/vnd.github.v3+json",
       },
-      next: { revalidate: 0 },
     }
   );
 
@@ -25,7 +44,7 @@ export async function fetchUserPRs(
 
   const pulls = await res.json();
 
-  const userRes = await fetch(`${GITHUB_API}/user`, {
+  const userRes = await fetchWithRetry(`${GITHUB_API}/user`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   const user = await userRes.json();

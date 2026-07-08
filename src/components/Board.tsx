@@ -13,7 +13,7 @@ import {
 import { RequirementCard } from "./RequirementCard";
 import { DetailPanel } from "./DetailPanel";
 
-const POLL_INTERVAL = 30_000;
+const POLL_INTERVAL = 60_000;
 
 const STAGE_ORDER: Stage[] = [
   "developing",
@@ -48,7 +48,9 @@ export function Board() {
       setError(null);
       setLastUpdated(new Date());
     } catch (e: any) {
-      setError(e.message);
+      if (requirements.length === 0) {
+        setError(e.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -63,7 +65,7 @@ export function Board() {
 
   if (!session) return null;
 
-  if (loading) {
+  if (loading && requirements.length === 0) {
     return (
       <div className="flex items-center justify-center h-64 text-gray-500">
         加载中...
@@ -71,7 +73,7 @@ export function Board() {
     );
   }
 
-  if (error) {
+  if (error && requirements.length === 0) {
     return (
       <div className="flex items-center justify-center h-64 text-red-500">
         加载失败: {error}

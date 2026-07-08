@@ -12,6 +12,7 @@ interface Props {
 export function RequirementCard({ pr, stage, displayTitle, onClick }: Props) {
   const config = STAGE_CONFIG[stage];
   const updatedDate = new Date(pr.updatedAt).toLocaleDateString("zh-CN", {
+    year: "numeric",
     month: "long",
     day: "numeric",
   });

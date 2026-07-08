@@ -6,13 +6,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     GitHub({
       clientId: process.env.GITHUB_ID!,
       clientSecret: process.env.GITHUB_SECRET!,
-      authorization: {
-        params: {
-          scope: "read:user repo",
-        },
-      },
+      authorization: "https://github.com/login/oauth/authorize?scope=read:user+repo",
     }),
   ],
+  session: {
+    strategy: "jwt",
+  },
   callbacks: {
     async jwt({ token, account }) {
       if (account) {
@@ -21,7 +20,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return token;
     },
     async session({ session, token }) {
-      (session as any).accessToken = token.accessToken;
+      (session as any).accessToken = token.accessToken as string;
       return session;
     },
   },
