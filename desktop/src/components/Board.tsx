@@ -14,7 +14,15 @@ interface PR {
   review_comments: number;
   html_url: string;
   body: string | null;
+  ai_review: string | null;
+  ai_verdict: string | null;
 }
+
+const VERDICT_META: Record<string, { label: string; color: string; bg: string }> = {
+  PASS: { label: "✅ 审核通过", color: "#1a7f37", bg: "#e6f4ea" },
+  FAIL: { label: "⚠️ 有阻塞项", color: "#d93025", bg: "#fce8e6" },
+  UNKNOWN: { label: "❔ 待确认", color: "#5f6368", bg: "#f1f3f4" },
+};
 
 type Stage = "proposal" | "reviewing" | "merged" | "closed";
 
@@ -188,12 +196,25 @@ function PRCard(props: { pr: PR; onClick: () => void }) {
           {meta().emoji} {meta().label}
         </span>
       </div>
-      <div style={{ "margin-top": "8px", "font-size": "12px", color: "#9aa0a6", display: "flex", gap: "8px" }}>
+      <div style={{ "margin-top": "8px", "font-size": "12px", color: "#9aa0a6", display: "flex", gap: "8px", "align-items": "center", "flex-wrap": "wrap" }}>
         <span>PR #{props.pr.number}</span>
         <span>·</span>
         <span>{props.pr.branch}</span>
         <span>·</span>
         <span>{fmtDate(props.pr.updated_at)}</span>
+        <Show when={props.pr.ai_verdict}>
+          <span
+            style={{
+              "font-size": "11px",
+              padding: "1px 8px",
+              "border-radius": "10px",
+              color: VERDICT_META[props.pr.ai_verdict!]?.color ?? "#5f6368",
+              background: VERDICT_META[props.pr.ai_verdict!]?.bg ?? "#f1f3f4",
+            }}
+          >
+            {VERDICT_META[props.pr.ai_verdict!]?.label ?? props.pr.ai_verdict}
+          </span>
+        </Show>
       </div>
     </div>
   );
@@ -246,8 +267,48 @@ function DetailPanel(props: { pr: PR; onClose: () => void }) {
           </button>
         </div>
         <div style={{ flex: "1", "overflow-y": "auto", padding: "20px" }}>
+          <Show when={props.pr.ai_verdict}>
+            <div
+              style={{
+                display: "inline-block",
+                "font-size": "13px",
+                "font-weight": "600",
+                padding: "4px 12px",
+                "border-radius": "12px",
+                "margin-bottom": "16px",
+                color: VERDICT_META[props.pr.ai_verdict!]?.color ?? "#5f6368",
+                background: VERDICT_META[props.pr.ai_verdict!]?.bg ?? "#f1f3f4",
+              }}
+            >
+              {VERDICT_META[props.pr.ai_verdict!]?.label ?? props.pr.ai_verdict}
+            </div>
+          </Show>
+
+          <Show when={props.pr.ai_review}>
+            <div style={{ "margin-bottom": "24px" }}>
+              <h3 style={{ "font-size": "13px", "font-weight": "600", color: "#5f6368", margin: "0 0 8px" }}>
+                AI 审核结果
+              </h3>
+              <div
+                style={{
+                  background: "#f8f9fa",
+                  border: "1px solid #e8eaed",
+                  "border-radius": "8px",
+                  padding: "14px",
+                }}
+              >
+                <pre style={{ "white-space": "pre-wrap", "font-family": "inherit", "font-size": "13px", color: "#3c4043", margin: "0", "line-height": "1.6" }}>
+                  {props.pr.ai_review}
+                </pre>
+              </div>
+            </div>
+          </Show>
+
+          <h3 style={{ "font-size": "13px", "font-weight": "600", color: "#5f6368", margin: "0 0 8px" }}>
+            提交内容
+          </h3>
           <Show when={props.pr.body} fallback={<p style={{ color: "#9aa0a6", "font-size": "14px" }}>暂无描述</p>}>
-            <pre style={{ "white-space": "pre-wrap", "font-family": "inherit", "font-size": "14px", color: "#3c4043", margin: "0" }}>
+            <pre style={{ "white-space": "pre-wrap", "font-family": "inherit", "font-size": "14px", color: "#3c4043", margin: "0", "line-height": "1.6" }}>
               {props.pr.body}
             </pre>
           </Show>
