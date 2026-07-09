@@ -1,4 +1,4 @@
-import { createSignal, createEffect, For } from "solid-js";
+import { createSignal, createEffect, For, Show } from "solid-js";
 
 interface Idea {
   id: string;
@@ -16,7 +16,7 @@ function load(): Idea[] {
   }
 }
 
-export function IdeaPool() {
+export function IdeaPool(props: { onLaunch?: (text: string) => void }) {
   const [ideas, setIdeas] = createSignal<Idea[]>(load());
   const [input, setInput] = createSignal("");
 
@@ -89,7 +89,7 @@ export function IdeaPool() {
 
       <Section title="🚀 待启动" count={ready().length}>
         <For each={ready()}>
-          {(idea) => <Card idea={idea} onToggle={toggle} onRemove={remove} />}
+          {(idea) => <Card idea={idea} onToggle={toggle} onRemove={remove} onLaunch={props.onLaunch} />}
         </For>
       </Section>
 
@@ -129,6 +129,7 @@ function Card(props: {
   idea: Idea;
   onToggle: (id: string) => void;
   onRemove: (id: string) => void;
+  onLaunch?: (text: string) => void;
 }) {
   const [hover, setHover] = createSignal(false);
   return (
@@ -148,6 +149,21 @@ function Card(props: {
       }}
     >
       <span style={{ flex: "1", color: "#202124" }}>{props.idea.content}</span>
+      <Show when={props.idea.status === "ready" && props.onLaunch}>
+        <button
+          onClick={() => props.onLaunch!(props.idea.content)}
+          style={{
+            padding: "4px 12px",
+            background: "#1a73e8",
+            color: "#fff",
+            "border-radius": "6px",
+            "font-size": "13px",
+            "font-weight": "500",
+          }}
+        >
+          启动需求
+        </button>
+      </Show>
       <div
         style={{
           display: "flex",
