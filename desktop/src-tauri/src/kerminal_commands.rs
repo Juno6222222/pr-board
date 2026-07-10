@@ -88,12 +88,19 @@ pub async fn kerminal_start(
     Ok(())
 }
 
-/// Create a new conversation. Returns the conversation id.
+/// Result of creating/resuming a conversation.
+#[derive(serde::Serialize)]
+pub struct ConversationInfo {
+    pub conversation_id: String,
+    pub rollout_path: Option<String>,
+}
+
+/// Create a new conversation. Returns the conversation id + rollout path.
 #[tauri::command]
 pub async fn kerminal_new_conversation(
     state: tauri::State<'_, KerminalState>,
     cwd: String,
-) -> Result<String, String> {
+) -> Result<ConversationInfo, String> {
     let guard = state.client.lock().await;
     let client = guard.as_ref().ok_or("Kerminal not started")?;
 
@@ -108,7 +115,34 @@ pub async fn kerminal_new_conversation(
         .add_conversation_listener(&resp.conversation_id)
         .await?;
 
-    Ok(resp.conversation_id)
+    Ok(ConversationInfo {
+        conversation_id: resp.conversation_id,
+        rollout_path: resp.rollout_path,
+    })
+}
+
+/// Resume an existing conversation from its rollout file.
+#[tauri::command]
+pub async fn kerminal_resume_conversation(
+    state: tauri::State<'_, KerminalState>,
+    rollout_path: String,
+) -> Result<ConversationInfo, String> {
+    let guard = state.client.lock().await;
+    let client = guard.as_ref().ok_or("Kerminal not started")?;
+
+    let result = client.resume_conversation(&rollout_path, None).await?;
+    let conversation_id = result
+        .get("conversationId")
+        .and_then(|v| v.as_str())
+        .ok_or("resumeConversation: missing conversationId")?
+        .to_string();
+
+    client.add_conversation_listener(&conversation_id).await?;
+
+    Ok(ConversationInfo {
+        conversation_id,
+        rollout_path: Some(rollout_path),
+    })
 }
 
 /// Send a user message to a conversation.

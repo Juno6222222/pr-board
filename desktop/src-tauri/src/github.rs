@@ -20,8 +20,7 @@ pub struct PullRequest {
     pub ai_verdict: Option<String>,
 }
 
-fn get_github_token() -> Result<String, String> {
-    let output = Command::new("git")
+fn get_github_token() -> Result<String, String> {    let output = Command::new("git")
         .arg("credential-osxkeychain")
         .arg("get")
         .stdin(std::process::Stdio::piped())
@@ -111,7 +110,7 @@ pub async fn fetch_pull_requests() -> Result<Vec<PullRequest>, String> {
     let client = reqwest::Client::new();
 
     let url = format!(
-        "https://api.github.com/repos/{REPO}/pulls?state=all&per_page=30&sort=updated&direction=desc"
+        "https://api.github.com/repos/{REPO}/pulls?state=all&per_page=100&sort=updated&direction=desc"
     );
 
     let resp = client
@@ -132,28 +131,15 @@ pub async fn fetch_pull_requests() -> Result<Vec<PullRequest>, String> {
         .await
         .map_err(|e| format!("parse error: {e}"))?;
 
-    // get current user
-    let user_resp = client
-        .get("https://api.github.com/user")
-        .header("Authorization", format!("Bearer {token}"))
-        .header("User-Agent", "KerFlow")
-        .send()
-        .await
-        .map_err(|e| format!("user request failed: {e}"))?;
-
-    let user: serde_json::Value = user_resp
-        .json()
-        .await
-        .map_err(|e| format!("user parse error: {e}"))?;
-    let username = user["login"].as_str().unwrap_or("").to_string();
-
     let mut result = Vec::new();
     if let Some(arr) = pulls.as_array() {
         for pr in arr {
-            let author = pr["user"]["login"].as_str().unwrap_or("").to_string();
-            if author != username {
+            let title = pr["title"].as_str().unwrap_or("").to_string();
+            // Only show product proposal PRs (title starts with "docs(proposal):").
+            if !title.trim_start().to_lowercase().starts_with("docs(proposal):") {
                 continue;
             }
+            let author = pr["user"]["login"].as_str().unwrap_or("").to_string();
             let number = pr["number"].as_u64().unwrap_or(0);
             let (ai_review, ai_verdict) = match fetch_ai_review(&client, &token, number).await {
                 Some((body, verdict)) => (Some(body), Some(verdict)),
@@ -161,7 +147,7 @@ pub async fn fetch_pull_requests() -> Result<Vec<PullRequest>, String> {
             };
             result.push(PullRequest {
                 number,
-                title: pr["title"].as_str().unwrap_or("").to_string(),
+                title,
                 state: pr["state"].as_str().unwrap_or("").to_string(),
                 merged: !pr["merged_at"].is_null(),
                 branch: pr["head"]["ref"].as_str().unwrap_or("").to_string(),
@@ -178,4 +164,106 @@ pub async fn fetch_pull_requests() -> Result<Vec<PullRequest>, String> {
     }
 
     Ok(result)
+}
+
+/// Create a pull request via GitHub API.
+#[tauri::command]
+pub async fn create_pull_request(
+    title: String,
+    body: String,
+    head: String,
+    base: String,
+) -> Result<String, String> {
+    let token = get_github_token()?;
+    let client = reqwest::Client::new();
+
+    let url = format!("https://api.github.com/repos/{REPO}/pulls");
+    let payload = serde_json::json!({
+        "title": title,
+        "body": body,
+        "head": head,
+        "base": base,
+    });
+
+    let resp = client
+        .post(&url)
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Accept", "application/vnd.github.v3+json")
+        .header("User-Agent", "KerFlow")
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("request failed: {e}"))?;
+
+    let status = resp.status();
+    let json: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("parse error: {e}"))?;
+
+    if !status.is_success() {
+        let msg = json["message"].as_str().unwrap_or("unknown error");
+        let details = json["errors"]
+            .as_array()
+            .and_then(|arr| arr.first())
+            .and_then(|e| e["message"].as_str())
+            .unwrap_or("");
+        return Err(format!("创建 PR 失败：{msg} {details}"));
+    }
+
+    let html_url = json["html_url"].as_str().unwrap_or("").to_string();
+    Ok(html_url)
+}
+
+/// Append a revision note to an existing PR's body (title & existing body unchanged).
+/// Finds the open PR whose head branch matches `head`.
+#[tauri::command]
+pub async fn append_pr_body(head: String, note: String) -> Result<String, String> {
+    let token = get_github_token()?;
+    let client = reqwest::Client::new();
+
+    let owner = REPO.split('/').next().unwrap_or("");
+    // Find open PR for this head branch.
+    let list_url =
+        format!("https://api.github.com/repos/{REPO}/pulls?state=open&head={owner}:{head}");
+    let resp = client
+        .get(&list_url)
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Accept", "application/vnd.github.v3+json")
+        .header("User-Agent", "KerFlow")
+        .send()
+        .await
+        .map_err(|e| format!("request failed: {e}"))?;
+
+    let pulls: serde_json::Value = resp.json().await.map_err(|e| format!("parse error: {e}"))?;
+    let pr = pulls
+        .as_array()
+        .and_then(|arr| arr.first())
+        .ok_or("未找到该分支对应的开放 PR")?;
+
+    let number = pr["number"].as_u64().ok_or("PR number missing")?;
+    let old_body = pr["body"].as_str().unwrap_or("");
+    let new_body = format!("{old_body}\n\n{note}");
+
+    let patch_url = format!("https://api.github.com/repos/{REPO}/pulls/{number}");
+    let payload = serde_json::json!({ "body": new_body });
+    let patch_resp = client
+        .patch(&patch_url)
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Accept", "application/vnd.github.v3+json")
+        .header("User-Agent", "KerFlow")
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("update failed: {e}"))?;
+
+    if !patch_resp.status().is_success() {
+        return Err(format!("更新 PR body 失败：{}", patch_resp.status()));
+    }
+
+    let updated: serde_json::Value = patch_resp
+        .json()
+        .await
+        .map_err(|e| format!("parse error: {e}"))?;
+    Ok(updated["html_url"].as_str().unwrap_or("").to_string())
 }

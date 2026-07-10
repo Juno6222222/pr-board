@@ -7,7 +7,7 @@ type Tab = "ideas" | "board";
 
 function App() {
   const [tab, setTab] = createSignal<Tab>("ideas");
-  const [workflowIdea, setWorkflowIdea] = createSignal<string | null>(null);
+  const [workflowIdea, setWorkflowIdea] = createSignal<{ id: string; text: string } | null>(null);
 
   const tabStyle = (active: boolean) => ({
     padding: "8px 16px",
@@ -23,7 +23,13 @@ function App() {
   return (
     <Show
       when={workflowIdea() === null}
-      fallback={<Workflow ideaText={workflowIdea()!} onBack={() => setWorkflowIdea(null)} />}
+      fallback={
+        <Workflow
+          ideaId={workflowIdea()!.id}
+          ideaText={workflowIdea()!.text}
+          onBack={() => setWorkflowIdea(null)}
+        />
+      }
     >
       <div style={{ "max-width": "720px", margin: "0 auto", padding: "40px 20px" }}>
         <header style={{ "margin-bottom": "24px" }}>
@@ -45,7 +51,7 @@ function App() {
         </div>
 
         <div style={{ display: tab() === "ideas" ? "block" : "none" }}>
-          <IdeaPool onLaunch={(text) => setWorkflowIdea(text)} />
+          <IdeaPool onLaunch={(id, text) => setWorkflowIdea({ id, text })} />
         </div>
         <div style={{ display: tab() === "board" ? "block" : "none" }}>
           <Board />

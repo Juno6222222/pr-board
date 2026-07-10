@@ -1,6 +1,7 @@
 import { createSignal, createEffect, onMount, onCleanup, For, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { GitOps } from "./GitOps";
 
 const STAGES = [
   "选基准分支",
@@ -25,9 +26,21 @@ interface KerminalEvent {
   msg: any;
 }
 
-export function Workflow(props: { ideaText: string; onBack: () => void }) {
+export function Workflow(props: { ideaId: string; ideaText: string; onBack: () => void }) {
+  const storageKey = () => `kerflow-workflow-${props.ideaId}`;
+
+  const loadPersisted = (): { rolloutPath: string | null; messages: ChatMsg[] } => {
+    try {
+      const raw = localStorage.getItem(storageKey());
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return { rolloutPath: null, messages: [] };
+  };
+
+  const persisted = loadPersisted();
+
   const [stageIdx, setStageIdx] = createSignal(0);
-  const [messages, setMessages] = createSignal<ChatMsg[]>([]);
+  const [messages, setMessages] = createSignal<ChatMsg[]>(persisted.messages);
   const [input, setInput] = createSignal("");
   const [status, setStatus] = createSignal<string>("正在连接 Kerminal...");
   const [convId, setConvId] = createSignal<string | null>(null);
@@ -36,14 +49,23 @@ export function Workflow(props: { ideaText: string; onBack: () => void }) {
   let unlisten: (() => void) | null = null;
   let streamingRole: "assistant" | "reasoning" | null = null;
   let scrollRef: HTMLDivElement | undefined;
+  let rolloutPath: string | null = persisted.rolloutPath;
 
   const scrollToBottom = () => {
     if (scrollRef) scrollRef.scrollTop = scrollRef.scrollHeight;
   };
 
+  const persist = () => {
+    localStorage.setItem(
+      storageKey(),
+      JSON.stringify({ rolloutPath, messages: messages() })
+    );
+  };
+
   createEffect(() => {
     messages();
     requestAnimationFrame(scrollToBottom);
+    persist();
   });
 
   const appendDelta = (role: "assistant" | "reasoning", delta: string) => {
@@ -116,9 +138,28 @@ export function Workflow(props: { ideaText: string; onBack: () => void }) {
       });
 
       await invoke("kerminal_start");
-      setStatus("创建会话...");
-      const id = await invoke<string>("kerminal_new_conversation", { cwd: CWD });
-      setConvId(id);
+
+      interface ConvInfo {
+        conversationId: string;
+        rolloutPath: string | null;
+      }
+
+      let info: ConvInfo;
+      if (rolloutPath) {
+        setStatus("恢复会话...");
+        info = await invoke<ConvInfo>("kerminal_resume_conversation", {
+          rolloutPath,
+        });
+      } else {
+        setStatus("创建会话...");
+        info = await invoke<ConvInfo>("kerminal_new_conversation", { cwd: CWD });
+      }
+
+      setConvId(info.conversationId);
+      if (info.rolloutPath) {
+        rolloutPath = info.rolloutPath;
+        persist();
+      }
       setStatus("就绪");
     } catch (err) {
       setStatus("连接失败：" + String(err));
@@ -151,12 +192,15 @@ export function Workflow(props: { ideaText: string; onBack: () => void }) {
       {/* Left: stage bar */}
       <div
         style={{
-          width: "220px",
+          width: "240px",
           "border-right": "1px solid #e8eaed",
           padding: "20px",
           background: "#fafbfc",
           display: "flex",
           "flex-direction": "column",
+          height: "100vh",
+          "overflow-y": "auto",
+          "box-sizing": "border-box",
         }}
       >
         <button
@@ -218,6 +262,8 @@ export function Workflow(props: { ideaText: string; onBack: () => void }) {
             );
           }}
         </For>
+
+        <GitOps />
       </div>
 
       {/* Right: chat */}

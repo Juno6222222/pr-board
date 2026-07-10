@@ -16,7 +16,7 @@ function load(): Idea[] {
   }
 }
 
-export function IdeaPool(props: { onLaunch?: (text: string) => void }) {
+export function IdeaPool(props: { onLaunch?: (id: string, text: string) => void }) {
   const [ideas, setIdeas] = createSignal<Idea[]>(load());
   const [input, setInput] = createSignal("");
 
@@ -129,7 +129,7 @@ function Card(props: {
   idea: Idea;
   onToggle: (id: string) => void;
   onRemove: (id: string) => void;
-  onLaunch?: (text: string) => void;
+  onLaunch?: (id: string, text: string) => void;
 }) {
   const [hover, setHover] = createSignal(false);
   return (
@@ -151,7 +151,7 @@ function Card(props: {
       <span style={{ flex: "1", color: "#202124" }}>{props.idea.content}</span>
       <Show when={props.idea.status === "ready" && props.onLaunch}>
         <button
-          onClick={() => props.onLaunch!(props.idea.content)}
+          onClick={() => props.onLaunch!(props.idea.id, props.idea.content)}
           style={{
             padding: "4px 12px",
             background: "#1a73e8",

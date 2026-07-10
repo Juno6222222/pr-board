@@ -61,12 +61,17 @@
 - Kerminal 绝不在对话中输出 token 明文；token 只能在命令内部作为变量使用。
 
 ### 阶段 0 · 定基准分支 🚦（我决定）
-- 开工第一步，Kerminal 主动问：「这次基于哪个分支？」并列出候选（main / 相关的旧分支）。
-- 默认从主分支拉最新；但若新需求与某个**尚未合入的旧需求**有联动，则基于那个旧分支。
+- 开工第一步，Kerminal 主动问：「这次基于哪个分支？」
+- **基准分支默认是 `dev`**（不是 main）。除非新需求与某个尚未合入的旧需求有联动，才基于那个旧分支。
 - 我给出分支后进入阶段 1。
 
+**分支命名规范（硬规则）**
+- 新分支名必须为 `proposal/<需求英文名>`，例如 `proposal/workspace-selection`、`proposal/windows-support`。
+- 需求名用小写英文 + 连字符（kebab-case），能表达需求主题。
+- 一个需求对应一个分支、一个 PR，全程在该分支迭代。
+
 ### 阶段 1 · 拉取 + 本地构建（你执行）
-- checkout 目标分支、拉最新。
+- 从 `dev` checkout 并拉最新，再基于它创建 `proposal/<需求名>` 分支。
 - 本地 build 跑起来，确认原型可运行。
 - 若工作区有无关的未提交改动，先 stash 保护，事后恢复。
 
@@ -104,9 +109,15 @@ created: YYYY-MM-DD
 ## Open Questions
 ```
 
-### 阶段 5 · 准备并提交 PR 🚦（你准备，我批准才 push）
-- Kerminal 把改动 commit 好，写好 PR 标题与 Body，**先给我看**。
-- 🚦 我确认后，Kerminal 才 `git push`。
+### 阶段 5 · 准备并提交 PR 🚦（你准备，我批准才提交）
+- **提交与推送必须由我手动触发确认，Kerminal 绝不自动提交。**
+- Kerminal 先把三样东西给我看，等我逐一确认：
+  - 提交信息（commit message）
+  - PR 标题
+  - PR Body
+  - proposal.md 与代码改动内容
+- 🚦 我全部确认后，Kerminal 才执行 commit + push，并创建 PR。
+- 分支为阶段 0 创建的 `proposal/<需求名>`，目标（base）为 `dev`。
 
 **PR 标题格式**
 ```
@@ -149,6 +160,17 @@ docs(proposal): 功能名
 - 修改后本地重新验证（typecheck / biome / cargo check 视情况）。
 - 🚦 改动给我看，我确认后 Kerminal 把提案与代码的改动**放在同一次 commit**，push 到**同一分支**（PR 自动更新，不新建 PR）。
 - push 后回到阶段 6 重新拉取 Review，直到通过（PASS / 无阻塞项）。
+
+**二次提交的 PR Body 规范（硬规则）**
+- **PR 标题不改**，Body 中已有的内容也**不改、不删**。
+- 只在原 Body **末尾追加**一段本轮修订说明，写清楚"这次修复了什么问题"。
+- 做法：Kerminal 自动拉取当前 PR 的原 Body，在末尾追加修订段落后更新，不覆盖原文。
+- 追加段落建议格式：
+  ```
+  ## 修订记录（YYYY-MM-DD）
+  - 针对 review 指出的 XXX 问题：说明如何修复
+  ```
+- 即便本轮代码与上次一模一样（只改了 md），代码与 md 也都要一起重新提交。
 
 **提交信息格式（修订）**
 ```
