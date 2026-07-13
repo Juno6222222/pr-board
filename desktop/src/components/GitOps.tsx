@@ -46,7 +46,7 @@ const inputStyle = {
 
 const labelStyle = { "font-size": "12px", color: "#5f6368", "margin-top": "8px" };
 
-export function GitOps() {
+export function GitOps(props: { onStage?: (idx: number) => void }) {
   const [open, setOpen] = createSignal<PanelKey>(null);
   const [msg, setMsg] = createSignal<string>("");
 
@@ -111,6 +111,7 @@ export function GitOps() {
         newBranch: name,
       });
       setMsg("✅ " + r);
+      props.onStage?.(2);
     } catch (e) {
       setMsg("❌ " + String(e));
     }
@@ -127,6 +128,7 @@ export function GitOps() {
         message: commitMsg().trim(),
       });
       setMsg("✅ " + r);
+      props.onStage?.(4);
     } catch (e) {
       setMsg("❌ " + String(e));
     }
@@ -148,6 +150,7 @@ export function GitOps() {
       });
       setPrUrl(url);
       setMsg("✅ PR 已创建");
+      props.onStage?.(5);
     } catch (e) {
       setMsg("❌ " + String(e));
     }
@@ -167,6 +170,7 @@ export function GitOps() {
       setPrUrl(url);
       setReviseNote("");
       setMsg("✅ 已追加到 PR 描述");
+      props.onStage?.(5);
     } catch (e) {
       setMsg("❌ " + String(e));
     }

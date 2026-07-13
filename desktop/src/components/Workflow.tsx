@@ -242,15 +242,12 @@ export function Workflow(props: { ideaId: string; ideaText: string; onBack: () =
             const done = () => i() < stageIdx();
             const current = () => i() === stageIdx();
             return (
-              <button
-                onClick={() => setStageIdx(i())}
+              <div
                 style={{
                   display: "flex",
                   "align-items": "center",
                   gap: "8px",
                   padding: "8px 0",
-                  background: "transparent",
-                  "text-align": "left",
                   "font-size": "13px",
                   color: current() ? "#1a73e8" : done() ? "#1a7f37" : "#9aa0a6",
                   "font-weight": current() ? "600" : "400",
@@ -258,12 +255,12 @@ export function Workflow(props: { ideaId: string; ideaText: string; onBack: () =
               >
                 <span>{done() ? "✅" : current() ? "🔵" : "○"}</span>
                 <span>{stage}</span>
-              </button>
+              </div>
             );
           }}
         </For>
 
-        <GitOps />
+        <GitOps onStage={(idx) => setStageIdx((prev) => Math.max(prev, idx))} />
       </div>
 
       {/* Right: chat */}

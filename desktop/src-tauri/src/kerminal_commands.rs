@@ -90,6 +90,7 @@ pub async fn kerminal_start(
 
 /// Result of creating/resuming a conversation.
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ConversationInfo {
     pub conversation_id: String,
     pub rollout_path: Option<String>,
